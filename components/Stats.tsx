@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Cell, LabelList } from 'recharts';
-import { Flame, Clock, BookOpen, Calendar, Search, Check, X, RotateCcw } from 'lucide-react';
+import { Flame, Clock, BookOpen, Calendar, Search, Check, X, RotateCcw, Camera } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import ModalPortal from './ModalPortal';
 import ResolvedImage from './ResolvedImage';
@@ -855,6 +855,213 @@ const Stats: React.FC<StatsProps> = ({
     setStickyNoteReloadNonce((prev) => prev + 1);
   };
 
+  const handleDownloadStickyNote = async () => {
+    if (isStickyNoteLoading || !stickyNoteContent.trim()) return;
+
+    // Geometry — roughly 2× the on-screen note for a crisp export.
+    const PAPER_W = 520;
+    const PAPER_PAD = 32;
+    const OUTER_PAD = 56;
+    const TAPE_W = 172;
+    const TAPE_H = 34;
+    const ROTATION_RAD = (-1 * Math.PI) / 180;
+    const TAPE_ROT_RAD = (2 * Math.PI) / 180;
+
+    const DATE_FONT_PX = 24;
+    const DATE_FONT = `700 ${DATE_FONT_PX}px "PING FANG SHAO HUA", "PingFang SC", "Microsoft YaHei", sans-serif`;
+    const DATE_LINE_H = Math.round(DATE_FONT_PX * 1.2); // 29
+    const DATE_BORDER_GAP = 8;
+    const DATE_MARGIN = 14;
+
+    const BODY_FONT_PX = 20;
+    const BODY_FONT = `400 ${BODY_FONT_PX}px "PING FANG SHAO HUA", "PingFang SC", "Microsoft YaHei", sans-serif`;
+    const BODY_LINE_H = BODY_FONT_PX * 1.62; // 32.4
+
+    // The "PING FANG SHAO HUA" font is heavily subsetted (~30 woff2 chunks split by unicode-range).
+    // The browser only fetches the chunks it currently needs to render on-screen text; Canvas
+    // drawing doesn't trigger that fetch, so glyphs not yet downloaded will silently fall back to
+    // the next font in the stack. document.fonts.load(font, text) forces the matching subsets to
+    // download for the exact characters we're about to draw.
+    if (document.fonts?.load) {
+      try {
+        await Promise.all([
+          // The @font-face has no weight specified (defaults to 400). Bold for the date is
+          // synthesized by the renderer from the 400 face, so we only need to load 400.
+          document.fonts.load(`${DATE_FONT_PX}px "PING FANG SHAO HUA"`, stickyNoteDateText),
+          document.fonts.load(`${BODY_FONT_PX}px "PING FANG SHAO HUA"`, stickyNoteContent),
+        ]);
+      } catch {
+        // Subset fetch failure shouldn't block export — we just fall back to the next font.
+      }
+    }
+
+    // Char-by-char wrapping — handles CJK natively and breaks Latin words at the boundary.
+    const measureCtx = document.createElement('canvas').getContext('2d');
+    if (!measureCtx) {
+      setStickyNoteError('Canvas 2D 不可用');
+      return;
+    }
+
+    const wrapLines = (text: string, font: string, maxWidth: number): string[] => {
+      measureCtx.font = font;
+      const out: string[] = [];
+      for (const para of text.split('\n')) {
+        if (para === '') { out.push(''); continue; }
+        let line = '';
+        for (const ch of para) {
+          const test = line + ch;
+          if (line && measureCtx.measureText(test).width > maxWidth) {
+            out.push(line);
+            line = ch;
+          } else {
+            line = test;
+          }
+        }
+        if (line) out.push(line);
+      }
+      return out;
+    };
+
+    const innerW = PAPER_W - PAPER_PAD * 2;
+    const dateLines = wrapLines(stickyNoteDateText, DATE_FONT, innerW);
+    const bodyLines = wrapLines(stickyNoteContent, BODY_FONT, innerW);
+
+    const dateBlockH = dateLines.length * DATE_LINE_H + DATE_BORDER_GAP + 1 + DATE_MARGIN;
+    const bodyBlockH = bodyLines.length * BODY_LINE_H;
+    const paperH = Math.ceil(PAPER_PAD * 2 + dateBlockH + bodyBlockH);
+
+    // Rotated bounding box of the paper.
+    const cos = Math.cos(Math.abs(ROTATION_RAD));
+    const sin = Math.sin(Math.abs(ROTATION_RAD));
+    const rotW = PAPER_W * cos + paperH * sin;
+    const rotH = PAPER_W * sin + paperH * cos;
+
+    const canvasW = Math.ceil(rotW + OUTER_PAD * 2);
+    const canvasH = Math.ceil(rotH + OUTER_PAD * 2 + TAPE_H / 2);
+
+    // Hi-DPI offscreen canvas.
+    const dpr = 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvasW * dpr;
+    canvas.height = canvasH * dpr;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      setStickyNoteError('Canvas 2D 不可用');
+      return;
+    }
+    ctx.scale(dpr, dpr);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    const paperCenterX = canvasW / 2;
+    const paperCenterY = OUTER_PAD + TAPE_H / 2 + paperH / 2;
+
+    // ── Paper ──
+    ctx.save();
+    ctx.translate(paperCenterX, paperCenterY);
+    ctx.rotate(ROTATION_RAD);
+
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetX = 5;
+    ctx.shadowOffsetY = 5;
+    ctx.fillStyle = 'rgba(255, 248, 232, 0.96)';
+    ctx.fillRect(-PAPER_W / 2, -paperH / 2, PAPER_W, paperH);
+
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
+    // Soft inner highlight (approximates `inset 0 0 30px rgba(255,255,255,0.5)`).
+    const insetGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.max(PAPER_W, paperH) / 2);
+    insetGrad.addColorStop(0, 'rgba(255, 255, 255, 0.22)');
+    insetGrad.addColorStop(0.85, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = insetGrad;
+    ctx.fillRect(-PAPER_W / 2, -paperH / 2, PAPER_W, paperH);
+
+    // Switch to top-left of inner padding box.
+    ctx.translate(-PAPER_W / 2 + PAPER_PAD, -paperH / 2 + PAPER_PAD);
+    ctx.textBaseline = 'top';
+
+    // Date lines
+    ctx.fillStyle = '#555';
+    ctx.font = DATE_FONT;
+    dateLines.forEach((line, i) => {
+      ctx.fillText(line, 0, i * DATE_LINE_H);
+    });
+
+    // Dashed separator under date
+    const borderY = dateLines.length * DATE_LINE_H + DATE_BORDER_GAP;
+    ctx.strokeStyle = '#ccc';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(0, borderY + 0.5);
+    ctx.lineTo(innerW, borderY + 0.5);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Body lines
+    ctx.fillStyle = '#444';
+    ctx.font = BODY_FONT;
+    const bodyStartY = borderY + 1 + DATE_MARGIN;
+    bodyLines.forEach((line, i) => {
+      ctx.fillText(line, 0, bodyStartY + i * BODY_LINE_H);
+    });
+
+    ctx.restore();
+
+    // ── Tape (drawn after paper so it sits on top, rotated with the paper) ──
+    ctx.save();
+    ctx.translate(paperCenterX, paperCenterY);
+    ctx.rotate(ROTATION_RAD);
+    ctx.translate(0, -paperH / 2);
+    ctx.rotate(TAPE_ROT_RAD);
+
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.06)';
+    ctx.shadowBlur = 5;
+    ctx.shadowOffsetY = 2;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+    ctx.fillRect(-TAPE_W / 2, -TAPE_H / 2, TAPE_W, TAPE_H);
+
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.12)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(-TAPE_W / 2 + 0.5, -TAPE_H / 2);
+    ctx.lineTo(-TAPE_W / 2 + 0.5, TAPE_H / 2);
+    ctx.moveTo(TAPE_W / 2 - 0.5, -TAPE_H / 2);
+    ctx.lineTo(TAPE_W / 2 - 0.5, TAPE_H / 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.restore();
+
+    // ── Export ──
+    try {
+      await new Promise<void>((resolve, reject) => {
+        canvas.toBlob((pngBlob) => {
+          if (!pngBlob) { reject(new Error('PNG 编码失败')); return; }
+          const dlUrl = URL.createObjectURL(pngBlob);
+          const a = document.createElement('a');
+          a.href = dlUrl;
+          a.download = `便签_${stickyNoteDateKey}.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(dlUrl), 1000);
+          resolve();
+        }, 'image/png');
+      });
+    } catch (err) {
+      setStickyNoteError(err instanceof Error ? err.message : '截图导出失败');
+    }
+  };
+
   const closeCardModal = () => {
     setOpenCardModal(null);
     setGoalBookSearchKeyword('');
@@ -1104,7 +1311,32 @@ const Stats: React.FC<StatsProps> = ({
                 <X size={16} />
               </button>
 
-              <h3 className={`text-lg font-bold mb-5 text-center ${headingClass}`}>{modalTitleMap[openCardModal]}</h3>
+              {openCardModal === 'streak' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleResetStickyNote}
+                    disabled={isStickyNoteLoading}
+                    aria-label="重新生成便签"
+                    title="重新生成"
+                    className={`absolute top-4 left-4 w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-rose-500 disabled:opacity-40 disabled:cursor-not-allowed ${btnClass}`}
+                  >
+                    <RotateCcw size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownloadStickyNote}
+                    disabled={isStickyNoteLoading || !stickyNoteContent.trim()}
+                    aria-label="下载便签截图"
+                    title="下载截图"
+                    className={`absolute top-4 left-14 w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-rose-500 disabled:opacity-40 disabled:cursor-not-allowed ${btnClass}`}
+                  >
+                    <Camera size={14} />
+                  </button>
+                </>
+              )}
+
+              <h3 className={`text-lg font-bold mb-5 text-center px-20 ${headingClass}`}>{modalTitleMap[openCardModal]}</h3>
 
               {openCardModal === 'streak' ? (
                 <div className="flex-1 min-h-0 flex flex-col">
@@ -1140,17 +1372,6 @@ const Stats: React.FC<StatsProps> = ({
                         )}
                       </div>
                     </div>
-                  </div>
-                  <div className="pt-3 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={handleResetStickyNote}
-                      disabled={isStickyNoteLoading}
-                      className={`h-8 px-3 rounded-full text-[11px] font-bold flex items-center gap-1.5 transition-all active:scale-[0.98] disabled:opacity-55 disabled:cursor-not-allowed ${btnClass} ${isDarkMode ? 'text-slate-200 hover:text-rose-300' : 'text-slate-500 hover:text-rose-500'}`}
-                    >
-                      <RotateCcw size={12} />
-                      <span>重置</span>
-                    </button>
                   </div>
                 </div>
               ) : openCardModal === 'goal' ? (

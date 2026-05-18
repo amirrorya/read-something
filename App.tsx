@@ -1117,6 +1117,43 @@ const App: React.FC = () => {
   useEffect(() => { safeSetStorageItem('app_settings', JSON.stringify(appSettings)); }, [appSettings]);
   useEffect(() => { safeSetStorageItem('app_personas', JSON.stringify(personas)); }, [personas]);
   useEffect(() => { safeSetStorageItem('app_characters', JSON.stringify(characters)); }, [characters]);
+
+  // One-time migration: convert persona.boundRoles from character-name based to character-id based.
+  // Each legacy name is expanded to ALL matching character IDs to preserve the prior visible
+  // "every same-name character looks bound" behavior; user can then prune via the dropdown.
+  const didMigrateBoundRolesRef = useRef(false);
+  useEffect(() => {
+    if (didMigrateBoundRolesRef.current) return;
+    if (personas.length === 0) { didMigrateBoundRolesRef.current = true; return; }
+    didMigrateBoundRolesRef.current = true;
+
+    const charIds = new Set(characters.map(c => c.id));
+    const charsByName = new Map<string, string[]>();
+    for (const c of characters) {
+      const list = charsByName.get(c.name);
+      if (list) list.push(c.id); else charsByName.set(c.name, [c.id]);
+    }
+
+    setPersonas(prev => prev.map(p => {
+      if (p.boundRoles.length === 0) return p;
+      const next: string[] = [];
+      const seen = new Set<string>();
+      for (const entry of p.boundRoles) {
+        if (charIds.has(entry)) {
+          if (!seen.has(entry)) { next.push(entry); seen.add(entry); }
+          continue;
+        }
+        const ids = charsByName.get(entry);
+        if (ids) {
+          for (const id of ids) {
+            if (!seen.has(id)) { next.push(id); seen.add(id); }
+          }
+        }
+      }
+      const unchanged = next.length === p.boundRoles.length && next.every((id, i) => id === p.boundRoles[i]);
+      return unchanged ? p : { ...p, boundRoles: next };
+    }));
+  }, [characters, personas]);
   useEffect(() => { safeSetStorageItem('app_worldbook', JSON.stringify(worldBookEntries)); }, [worldBookEntries]);
   useEffect(() => { safeSetStorageItem('app_wb_categories', JSON.stringify(wbCategories)); }, [wbCategories]);
   

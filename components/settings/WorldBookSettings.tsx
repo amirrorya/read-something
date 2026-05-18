@@ -126,16 +126,26 @@ const WorldBookSettings: React.FC<WorldBookSettingsProps> = ({
   };
 
   const deleteCategory = (category: string) => {
-    if (category === DEFAULT_CATEGORY) return;
+    const isDefault = category === DEFAULT_CATEGORY;
+    const hasEntries = worldBookEntries.some((entry) => entry.category === category);
+
+    if (isDefault) {
+      setWbCategories((prev) => prev.filter((item) => item !== category));
+      setWorldBookEntries((prev) => prev.filter((entry) => entry.category !== category));
+      return;
+    }
 
     setWbCategories((prev) => {
       const filtered = prev.filter((item) => item !== category);
+      if (!hasEntries) return filtered;
       return filtered.includes(DEFAULT_CATEGORY) ? filtered : [...filtered, DEFAULT_CATEGORY];
     });
 
-    setWorldBookEntries((prev) =>
-      prev.map((entry) => (entry.category === category ? { ...entry, category: DEFAULT_CATEGORY } : entry))
-    );
+    if (hasEntries) {
+      setWorldBookEntries((prev) =>
+        prev.map((entry) => (entry.category === category ? { ...entry, category: DEFAULT_CATEGORY } : entry))
+      );
+    }
   };
 
   const startRenamingCategory = (category: string) => {
@@ -454,7 +464,7 @@ const WorldBookSettings: React.FC<WorldBookSettingsProps> = ({
                     </button>
                   )}
 
-                  <div className="flex-1 mr-4">
+                  <div className="flex-1 min-w-0 mr-4">
                     {isEditing ? (
                       <input
                         type="text"
@@ -464,10 +474,10 @@ const WorldBookSettings: React.FC<WorldBookSettingsProps> = ({
                         placeholder="条目标题"
                       />
                     ) : (
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-black text-slate-400 min-w-[2ch]">{index + 1}.</span>
-                          <h3 className={`text-lg font-bold ${headingClass}`}>{entry.title}</h3>
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-start gap-2 min-w-0">
+                          <span className="text-xs font-black text-slate-400 min-w-[2ch] mt-1.5 flex-shrink-0">{index + 1}.</span>
+                          <h3 className={`text-lg font-bold break-words min-w-0 flex-1 ${headingClass}`}>{entry.title}</h3>
                         </div>
                         <div className="flex items-center gap-2 mt-1">
                           <span
@@ -672,8 +682,7 @@ const WorldBookSettings: React.FC<WorldBookSettingsProps> = ({
                       event.stopPropagation();
                       deleteCategory(category);
                     }}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-rose-500 disabled:opacity-30 ${btnClass}`}
-                    disabled={category === DEFAULT_CATEGORY}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-rose-500 ${btnClass}`}
                   >
                     <Trash2 size={14} />
                   </button>

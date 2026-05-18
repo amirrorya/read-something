@@ -9,7 +9,10 @@
       "WebFetch(domain:hf-mirror.com)",
       "Bash(curl:*)",
       "Bash(python3:*)",
-      "Bash(wc -l /c/Users/DELL/Downloads/ai-陪读伴侣/components/*.tsx)"
+      "Bash(wc -l /c/Users/DELL/Downloads/ai-陪读伴侣/components/*.tsx)",
+      "Bash(grep -r \"character\\\\|lorebook\\\\|world.info\\\\|SillyTavern\" /c/Users/DELL/Downloads/ai-陪读伴侣 --include=*.ts --include=*.tsx --include=*.js)",
+      "Bash(grep -r \"PNG\\\\|EXIF\\\\|metadata\\\\|image.*parse\" /c/Users/DELL/Downloads/ai-陪读伴侣 --include=*.ts --include=*.tsx --include=*.js)",
+      "Bash(xargs grep:*)"
     ]
   }
 }

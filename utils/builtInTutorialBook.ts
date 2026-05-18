@@ -12,7 +12,7 @@ import {
 
 export const BUILT_IN_TUTORIAL_BOOK_ID = '__built_in_tutorial__';
 /** Bump this number whenever tutorial content is changed so existing users get the update. */
-export const BUILT_IN_TUTORIAL_VERSION = 4.2;
+export const BUILT_IN_TUTORIAL_VERSION = 4.5;
 
 const TUTORIAL_UNREAD_KEY = '__built_in_tutorial_unread__';
 export const isTutorialUnread = (): boolean => {
@@ -36,6 +36,22 @@ const img = (imageRef: string, alt: string, w?: number, h?: number): ReaderConte
 /*  更新记录                                                            */
 /* ------------------------------------------------------------------ */
 const CH0_CONTENT = `更新记录
+
+-更新时间：2026.05.18
+
+本次更新内容：
+
+1.修复世界书界面相关 BUG
+"未分类"分类现在和其它分类一样可以删除（删除时其下条目会一并删除）。条目卡片长标题会在卡片内自动换行，不再挤压排序拖拽图标和右侧编辑/删除按钮。
+
+2.角色多选下拉框自动避让底部导航
+管理角色和管理用户人设界面底部的"绑定世界书分类"和"绑定角色"下拉框，到底部展开时会自动向上展开，不再被底部悬浮导航遮挡。
+
+3.修复同名角色绑定时一起被勾选的问题
+角色绑定关系现在按角色 ID 记录而非名字，多个同名但人设不同的角色可以独立绑定。旧数据自动迁移：原本基于名字绑定的角色会按 ID 展开成所有同名角色的绑定，后续可手动取消多余的。
+
+4.角色便签界面优化
+重置按钮从右下角移至左上角，去掉"重置"文字只保留图标；新增相机图标按钮，可下载当前便签截图（透明背景，仅含纸条+胶带+文字，使用 APP 同款字体）；便签显示区域相应放大。
 
 -更新时间：2026.03.19
 
@@ -119,75 +135,32 @@ const CH0_CONTENT = `更新记录
 3.优化章节标题渲染
 将章节标题加粗居中。`;
 
-const CH0_BLOCKS: ReaderContentBlock[] = [
-  text('更新记录'),
-  text(`-更新时间：2026.03.19`),
-  text(`本次更新内容：
+// Derive the reader blocks from CH0_CONTENT so future updates only edit one place
+// (CH0_CONTENT also feeds chapter.content → fullText → RAG / AI context).
+// Section pattern: title, then repeating "-更新时间：YYYY.MM.DD\n\n<body>" groups;
+// each group becomes a date block + a body block, matching the original BLOCKS layout.
+const deriveCh0Blocks = (content: string): ReaderContentBlock[] => {
+  const blocks: ReaderContentBlock[] = [];
+  const sections = content.split(/\n-更新时间：/);
+  const header = sections[0]?.trim();
+  if (header) blocks.push(text(header));
+  for (let i = 1; i < sections.length; i++) {
+    const entry = sections[i];
+    const newlineIdx = entry.indexOf('\n');
+    if (newlineIdx === -1) {
+      const date = entry.trim();
+      if (date) blocks.push(text(`-更新时间：${date}`));
+      continue;
+    }
+    const date = entry.slice(0, newlineIdx).trim();
+    const body = entry.slice(newlineIdx + 1).trim();
+    if (date) blocks.push(text(`-更新时间：${date}`));
+    if (body) blocks.push(text(body));
+  }
+  return blocks;
+};
 
-1.新增从本地导入角色卡功能
-在管理角色界面点击"新建角色"按钮，选择"本地导入"，可上传角色卡 JSON 或角色卡 PNG 文件。导入后自动还原角色名、人设描述、头像，并创建同名世界书分类，将所有绑定的世界书条目写入其中（含禁用条目）。如文件中缺少角色名，会弹出对话框补填。`),
-  text(`-更新时间：2026.02.28`),
-  text(`本次更新内容：
-
-1.新增支持mobi格式书籍导入
-
-2.新增收藏消息功能
-长按消息点击收藏图标后可以收藏该条消息，可在阅读界面右上角的更多设置-会话中查看收藏消息列表。
-
-3.新增会话记录导出为txt
-在更多设置-会话中可以导出当前与char的会话记录为txt。`),
-  text(`-更新时间：2026.02.27`),
-  text(`本次更新内容：
-
-1.书籍和聊天记录总结卡片新增同时合并精简选项
-选择多个总结卡片后，除了简单拼接合并，还可以让AI帮忙合并压缩这些总结段落。
-
-2.阅读界面顶部目录浮窗新增高亮tab
-可查看本书籍的所有高亮段落，可用颜色章节筛选，点击即可跳转到高亮段落所在处。
-
-3.共读集界面新增摘录tab
-可查看所有书籍的所有高亮段落，点击可显示完整内容，支持复制，删除，跳转。`),
-  text(`-更新时间：2026.02.26`),
-  text(`本次更新内容：
-
-1.新增书签所在章节显示
-
-2.新增char阅读文字范围开关
-在阅读界面点击更多设置→功能面板中新增了"上文整屏为准"开关。开启后，char读到的原文截至整屏底部而非消息区上方，共读集中的AI阅读范围也会同步。`),
-  text(`-更新时间：2026.02.25`),
-  text(`本次更新内容：
-
-1.新增按字数切分章节功能
-对于epub以外的书籍格式可以人工设定按照字符数切分章节，与正则模式切分二选一，但是注意对于pdf和docx格式，选择人工按照字符数切分则内置的图片会丢失。`),
-  text(`-更新时间：2026.02.24`),
-  text(`本次更新内容：
-
-1.新增笔记自定义CSS美化功能
-读书笔记选纸张界面支持自定义的CSS美化功能，并且内置了一个预设。`),
-  text(`-更新时间：2026.02.23`),
-  text(`本次更新内容：
-
-1.新增导出有声书功能
-可以多选章节，导出每一章已经生成过音频的段落拼接为有声书，支持一起导出SRT格式字幕。
-
-2.新增写笔记界面文字编辑样式
-支持编辑文字时改变文字样式为粗体，斜体，有序列表，无序列表，改变文字为标题或正文字号。
-
-3.修正GBK编码格式txt导入乱码问题
-
-4.优化发送给char的书籍上文断句方式`),
-  text(`-更新时间：2026.02.23`),
-  text(`本次更新内容：
-
-1.TTS 板块功能完善
-阅读页已支持段落级 TTS 生成功能：可从当前位置开始朗读、暂停/继续、停止播放；支持按段落缓存音频并在需要时单段刷新重生成，减少重复请求等待；新增多平台 TTS API 预设，语速/语言切换。
-
-2.修正书籍文本分段渲染
-修复了 txt 文件编辑页预览换行正常，但阅读页被渲染成长空格的问题。
-
-3.优化章节标题渲染
-将章节标题加粗居中。`),
-];
+const CH0_BLOCKS: ReaderContentBlock[] = deriveCh0Blocks(CH0_CONTENT);
 
 /* ------------------------------------------------------------------ */
 /*  第一章 快速开始                                                     */

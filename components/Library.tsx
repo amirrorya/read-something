@@ -548,7 +548,7 @@ const Library: React.FC<LibraryProps> = ({
     if (charId) {
        const selectedChar = characters.find(c => c.id === charId);
        if (selectedChar) {
-          const boundPersona = personas.find(p => p.boundRoles.includes(selectedChar.name));
+          const boundPersona = personas.find(p => p.boundRoles.includes(selectedChar.id));
           if (boundPersona) {
              onSelectPersona(boundPersona.id);
           }

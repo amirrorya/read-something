@@ -261,7 +261,7 @@ const CharacterSettings: React.FC<CharacterSettingsProps> = ({
 
         {characters.map(char => {
           const isEditing = editingCharacterId === char.id;
-          const boundUsers = personas.filter(p => p.boundRoles.includes(char.name));
+          const boundUsers = personas.filter(p => p.boundRoles.includes(char.id));
 
           return (
             <div key={char.id} className={`${cardClass} p-5 rounded-2xl transition-all ${isEditing ? activeBorderClass : baseBorderClass}`}>

@@ -98,7 +98,12 @@ const PersonaSettings: React.FC<PersonaSettingsProps> = ({
                         <div className="flex flex-col gap-0.5">
                           <p className="text-xs text-rose-400 flex items-center gap-1">
                             <FeatherIcon size={12} />
-                            绑定: {persona.boundRoles.length > 0 ? persona.boundRoles.join(', ') : '无'}
+                            绑定: {persona.boundRoles.length > 0
+                              ? persona.boundRoles
+                                  .map(id => characters.find(c => c.id === id)?.name)
+                                  .filter((n): n is string => !!n)
+                                  .join(', ') || '无'
+                              : '无'}
                           </p>
                         </div>
                       </>
@@ -154,14 +159,15 @@ const PersonaSettings: React.FC<PersonaSettingsProps> = ({
                    </div>
                    <div className="space-y-2">
                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">绑定角色 (多选)</label>
-                     <MultiSelectDropdown 
-                        options={characters.map(c => c.name)}
+                     <MultiSelectDropdown
+                        options={characters.map(c => c.id)}
                         selected={persona.boundRoles}
                         onChange={(newRoles) => updatePersona(persona.id, 'boundRoles', newRoles)}
                         placeholder="选择要绑定的角色..."
                         inputClass={inputClass}
                         cardClass={cardClass}
                         isDarkMode={isDarkMode}
+                        getLabel={(id) => characters.find(c => c.id === id)?.name ?? '(已删除)'}
                      />
                    </div>
                 </div>
