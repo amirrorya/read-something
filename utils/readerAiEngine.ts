@@ -1,4 +1,4 @@
-﻿import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
 import { ApiConfig, Chapter, ReaderHighlightRange, ReaderPositionState } from '../types';
 import { Character, WorldBookEntry } from '../components/settings/types';
 import {
@@ -686,7 +686,6 @@ export const callAiModel = async (prompt: string, apiConfig: ApiConfig, signal?:
     body: JSON.stringify({
       model,
       messages: [{ role: 'user', content: prompt }],
-      temperature: 0.85,
     }),
     signal,
   });
