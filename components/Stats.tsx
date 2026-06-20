@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Cell, LabelList } from 'recharts';
 import { Flame, Clock, BookOpen, Calendar, Search, Check, X, RotateCcw, Camera } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
@@ -682,7 +682,6 @@ const Stats: React.FC<StatsProps> = ({
       body: JSON.stringify({
         model,
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.8,
       }),
     });
     if (!response.ok) {
