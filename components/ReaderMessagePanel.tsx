@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
   MessagesSquare,
@@ -431,7 +431,6 @@ const callSummaryModel = async (prompt: string, config: ApiConfig) => {
       body: JSON.stringify({
         model,
         max_tokens: 320,
-        temperature: 0.4,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
